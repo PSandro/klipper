@@ -156,7 +156,8 @@ BOARD_DEFS = {
         'mcu': "lpc1769",
         'spi_bus': "ssp1",
         "cs_pin": "P0.6",
-        "chk_file": 'bigrep'
+        "conversion_script": "scripts/update_boogieboard.py",
+        "aux_files": [('{klipper_bin_path}', 'firmware.inf')],
     }
 }
 

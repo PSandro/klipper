@@ -22,7 +22,6 @@ import reactor
 import serialhdl
 import clocksync
 import mcu
-import binascii
 
 ###########################################################
 #
@@ -88,6 +87,24 @@ def check_need_convert(board_name, config):
     os.system(cmd)
     output_line("Done")
     config['klipper_bin_path'] = dest_bin
+
+    aux_files = config.get('aux_files')
+
+    if aux_files is None:
+        return
+
+    aux_tmp = []
+    for src, sd_dst in aux_files:
+        local_dst = os.path.join(
+                    os.path.dirname(src),
+                    os.path.basename(sd_dst))
+        src = src.format(klipper_bin_path=config['klipper_bin_path'])
+        cmd = "%s %s %s %s" % (sys.executable, conv_util, src, local_dst)
+        output("converting auxiliary file %s ..." % (src,))
+        os.system(cmd)
+        output_line("Done")
+        aux_tmp.append((local_dst, sd_dst))
+    config['aux_files'] = aux_tmp
 
 
 ###########################################################
@@ -1376,15 +1393,13 @@ class MCUConnection:
         else:
             raise SPIFlashError("Unknown bus defined in board_defs.py.")
 
-    def sdcard_upload(self):
-        output("Uploading Klipper Firmware to SD Card...")
+    def sdcard_upload_file(self, src_path, dst_path):
+        output("Uploading %s to SD Card in %s ..." % (src_path, dst_path))
         input_sha = hashlib.sha1()
         sd_sha = hashlib.sha1()
-        klipper_bin_path = self.board_config['klipper_bin_path']
-        fw_path = self.board_config.get('firmware_path', "firmware.bin")
         try:
-            with open(klipper_bin_path, 'rb') as local_f:
-                with self.fatfs.open_file(fw_path, "wb") as sd_f:
+            with open(src_path, 'rb') as local_f:
+                with self.fatfs.open_file(dst_path, "wb") as sd_f:
                     while True:
                         buf = local_f.read(4096)
                         if not buf:
@@ -1393,12 +1408,12 @@ class MCUConnection:
                         sd_f.write(buf)
         except Exception:
             logging.exception("SD Card Upload Error")
-            raise SPIFlashError("Error Uploading Firmware")
+            raise SPIFlashError("Error Uploading %s" % (src_path,))
         output_line("Done")
         output("Validating Upload...")
         try:
-            finfo = self.fatfs.get_file_info(fw_path)
-            with self.fatfs.open_file(fw_path, 'r') as sd_f:
+            finfo = self.fatfs.get_file_info(dst_path)
+            with self.fatfs.open_file(dst_path, 'r') as sd_f:
                 while True:
                     buf = sd_f.read(4096)
                     if not buf:
@@ -1406,7 +1421,7 @@ class MCUConnection:
                     sd_sha.update(buf)
         except Exception:
             logging.exception("SD Card Download Error")
-            raise SPIFlashError("Error reading %s from SD" % (fw_path))
+            raise SPIFlashError("Error reading %s from SD" % (dst_path,))
         sd_size = finfo.get('size', -1)
         input_chksm = input_sha.hexdigest().upper()
         sd_chksm = sd_sha.hexdigest().upper()
@@ -1415,45 +1430,19 @@ class MCUConnection:
                                 % (sd_chksm, input_chksm))
         output_line("Done")
         output_line(
-            "Firmware Upload Complete: %s, Size: %d, Checksum (SHA1): %s"
-            % (fw_path, sd_size, sd_chksm))
-        if self.board_config.get('chk_file') == 'bigrep':
-            self.bigrep_inf_upload()
+            "%s Upload Complete: %s, Size: %d, Checksum (SHA1): %s"
+            % (src_path, dst_path, sd_size, sd_chksm))
         return sd_chksm
 
-    def bigrep_inf_upload(self):
-        output("Uploading BigRep inf to SD Card...")
+    def sdcard_upload(self):
         klipper_bin_path = self.board_config['klipper_bin_path']
-        inf_path = 'firmware.inf'
+        fw_path = self.board_config.get('firmware_path', "firmware.bin")
+        self.sdcard_upload_file(klipper_bin_path, fw_path)
+        for src, sd_dst in self.board_config.get('aux_files'):
+            if not os.path.exists(src):
+                raise SPIFlashError("aux file '%s' not found" % src)
+            self.sdcard_upload_file(klipper_bin_path, fw_path)
 
-        with open(klipper_bin_path, 'rb') as local_f:
-            bin_data = local_f.read()
-            crc = binascii.crc_hqx(bin_data, 0xFFFF).to_bytes(2, 'big')
-
-        try:
-            with self.fatfs.open_file(inf_path, "wb") as sd_f:
-                    sd_f.write(crc)
-        except Exception:
-            logging.exception("SD Card Upload Error")
-            raise SPIFlashError("Error Uploading bigrep inf")
-        output_line("Done")
-        output("Validating Upload...")
-        try:
-            finfo = self.fatfs.get_file_info(inf_path)
-            with self.fatfs.open_file(inf_path, 'r') as sd_f:
-                buf = sd_f.read(2)
-        except Exception:
-            logging.exception("SD Card Download Error")
-            raise SPIFlashError("Error reading %s from SD" % (inf_path))
-        sd_size = finfo.get('size', -1)
-        if crc != buf:
-            raise SPIFlashError("Bigrep Inf mismatch: Got '%s', expected '%s'"
-                                % (buf, sd_size))
-        output_line("Done")
-        output_line(
-            "Bigrep inf Upload Complete: %s, Size: %d, Checksum: %s"
-            % (inf_path, sd_size, crc))
-        return crc
 
     def verify_flash(self, req_chksm, old_dictionary, req_dictionary):
         if bool(self.board_config.get('skip_verify', False)):
