@@ -18,7 +18,7 @@ def main():
     options, args = opts.parse_args()
     if len(args) != 3:
         opts.error("Incorrect number of arguments.")
-    cmd, input_path, output_path = args
+    input_path, output_path = args
 
     if output_path.endswith("firmware.inf"):
         with open(input_path, "rb") as f:
