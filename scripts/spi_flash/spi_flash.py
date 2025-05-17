@@ -23,7 +23,6 @@ import serialhdl
 import clocksync
 import mcu
 import binascii
-import struct
 
 ###########################################################
 #
@@ -1429,13 +1428,11 @@ class MCUConnection:
 
         with open(klipper_bin_path, 'rb') as local_f:
             bin_data = local_f.read()
-            crc = binascii.crc_hqx(bin_data, 0xFFFF)
+            crc = binascii.crc_hqx(bin_data, 0xFFFF).to_bytes(2, 'big')
 
-        checksum_struct = struct.pack(">H", crc)
-    
         try:
             with self.fatfs.open_file(inf_path, "wb") as sd_f:
-                    sd_f.write(checksum_struct)
+                    sd_f.write(crc)
         except Exception:
             logging.exception("SD Card Upload Error")
             raise SPIFlashError("Error Uploading bigrep inf")
@@ -1449,14 +1446,14 @@ class MCUConnection:
             logging.exception("SD Card Download Error")
             raise SPIFlashError("Error reading %s from SD" % (inf_path))
         sd_size = finfo.get('size', -1)
-        if checksum_struct != buf:
+        if crc != buf:
             raise SPIFlashError("Bigrep Inf mismatch: Got '%s', expected '%s'"
                                 % (buf, sd_size))
         output_line("Done")
         output_line(
             "Bigrep inf Upload Complete: %s, Size: %d, Checksum: %s"
-            % (inf_path, sd_size, checksum_struct))
-        return checksum_struct
+            % (inf_path, sd_size, crc))
+        return crc
 
     def verify_flash(self, req_chksm, old_dictionary, req_dictionary):
         if bool(self.board_config.get('skip_verify', False)):
