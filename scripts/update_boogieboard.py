@@ -13,14 +13,14 @@ import binascii
 
 
 def main():
-    usage = "%prog <input_path> <output_path>"
+    usage = "%prog <input_path> <output_path> <command>"
     opts = optparse.OptionParser(usage)
     options, args = opts.parse_args()
     if len(args) != 3:
         opts.error("Incorrect number of arguments.")
-    input_path, output_path = args
+    input_path, output_path, command = args
 
-    if output_path.endswith("firmware.inf"):
+    if command == "crc16-ccitt":
         with open(input_path, "rb") as f:
             crc_bytes = binascii.crc_hqx(f.read(), 0xFFFF)
         with open(output_path, "wb") as f:

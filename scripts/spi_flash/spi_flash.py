@@ -94,7 +94,11 @@ def check_need_convert(board_name, config):
         return
 
     aux_tmp = []
-    for src, sd_dst in aux_files:
+    for aux in aux_files:
+        if len(aux) == 2:
+            # implicit command 'copy'
+            aux = aux + ('copy',)
+        src, sd_dst, command = aux
         src = src.format(klipper_bin_path=config['klipper_bin_path'])
         if not os.path.exists(src):
             logging.error("aux file %s does not exists", src)
@@ -103,7 +107,8 @@ def check_need_convert(board_name, config):
         local_dst = os.path.join(
                     os.path.dirname(src),
                     os.path.basename(sd_dst))
-        cmd = "%s %s %s %s" % (sys.executable, conv_util, src, local_dst)
+        cmd = "%s %s %s %s %s" % (sys.executable, conv_util, src,
+                                  local_dst, command)
         output("converting auxiliary file %s ..." % (src,))
         os.system(cmd)
         output_line("Done")

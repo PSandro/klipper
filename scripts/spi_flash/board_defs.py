@@ -157,7 +157,7 @@ BOARD_DEFS = {
         'spi_bus': "ssp1",
         "cs_pin": "P0.6",
         "conversion_script": "scripts/update_boogieboard.py",
-        "aux_files": [('{klipper_bin_path}', 'firmware.inf')],
+        "aux_files": [('{klipper_bin_path}', 'firmware.inf', 'crc16-ciitt')],
     }
 }
 
