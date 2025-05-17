@@ -151,6 +151,12 @@ BOARD_DEFS = {
         "conversion_script": "scripts/update_chitu.py",
         "firmware_path": "update.cbd",
         'skip_verify': True
+    },
+    'boogieboard-1-3': {
+        'mcu': "lpc1769",
+        'spi_bus': "ssp1",
+        "cs_pin": "P0.6",
+        "chk_file": 'bigrep'
     }
 }
 

@@ -22,6 +22,8 @@ import reactor
 import serialhdl
 import clocksync
 import mcu
+import binascii
+import struct
 
 ###########################################################
 #
@@ -1416,7 +1418,45 @@ class MCUConnection:
         output_line(
             "Firmware Upload Complete: %s, Size: %d, Checksum (SHA1): %s"
             % (fw_path, sd_size, sd_chksm))
+        if self.board_config.get('chk_file') == 'bigrep':
+            self.bigrep_inf_upload()
         return sd_chksm
+
+    def bigrep_inf_upload(self):
+        output("Uploading BigRep inf to SD Card...")
+        klipper_bin_path = self.board_config['klipper_bin_path']
+        inf_path = 'firmware.inf'
+
+        with open(klipper_bin_path, 'rb') as local_f:
+            bin_data = local_f.read()
+            crc = binascii.crc_hqx(bin_data, 0xFFFF)
+
+        checksum_struct = struct.pack(">H", crc)
+    
+        try:
+            with self.fatfs.open_file(inf_path, "wb") as sd_f:
+                    sd_f.write(checksum_struct)
+        except Exception:
+            logging.exception("SD Card Upload Error")
+            raise SPIFlashError("Error Uploading bigrep inf")
+        output_line("Done")
+        output("Validating Upload...")
+        try:
+            finfo = self.fatfs.get_file_info(inf_path)
+            with self.fatfs.open_file(inf_path, 'r') as sd_f:
+                buf = sd_f.read(2)
+        except Exception:
+            logging.exception("SD Card Download Error")
+            raise SPIFlashError("Error reading %s from SD" % (inf_path))
+        sd_size = finfo.get('size', -1)
+        if checksum_struct != buf:
+            raise SPIFlashError("Bigrep Inf mismatch: Got '%s', expected '%s'"
+                                % (buf, sd_size))
+        output_line("Done")
+        output_line(
+            "Bigrep inf Upload Complete: %s, Size: %d, Checksum: %s"
+            % (inf_path, sd_size, checksum_struct))
+        return checksum_struct
 
     def verify_flash(self, req_chksm, old_dictionary, req_dictionary):
         if bool(self.board_config.get('skip_verify', False)):
