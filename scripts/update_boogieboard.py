@@ -13,9 +13,11 @@ import binascii
 
 
 def main():
-    usage = "%prog <input_path> <output_path> <command>"
+    usage = "%prog <input_path> <output_path> [<command>]"
     opts = optparse.OptionParser(usage)
     options, args = opts.parse_args()
+    if len(args) == 2:
+        args += (None,)
     if len(args) != 3:
         opts.error("Incorrect number of arguments.")
     input_path, output_path, command = args

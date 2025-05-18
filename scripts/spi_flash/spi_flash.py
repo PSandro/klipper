@@ -1447,10 +1447,15 @@ class MCUConnection:
         klipper_bin_path = self.board_config['klipper_bin_path']
         fw_path = self.board_config.get('firmware_path', "firmware.bin")
         self.sdcard_upload_file(klipper_bin_path, fw_path)
-        for src, sd_dst in self.board_config.get('aux_files'):
+        for aux in self.board_config.get('aux_files'):
+            if len(aux) != 2:
+                raise SPIFlashError("aux file tuple '%s' has too many args"
+                                    % aux)
+
+            src, sd_dst = aux
             if not os.path.exists(src):
                 raise SPIFlashError("aux file '%s' not found" % src)
-            self.sdcard_upload_file(klipper_bin_path, fw_path)
+            self.sdcard_upload_file(src, sd_dst)
 
 
     def verify_flash(self, req_chksm, old_dictionary, req_dictionary):
